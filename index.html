@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Pixel Paint</title>
+  <title>Pixel Paint with Firebase</title>
   <style>
     html, body {
       margin: 0;
@@ -59,8 +59,11 @@
       cursor: crosshair;
       background: white;
       border: 2px solid #333;
+      width: 1000px;
+      height: 1000px;
     }
   </style>
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"></script>
 </head>
@@ -77,12 +80,14 @@
       <div class="color-option" style="background:purple;" data-color="#800080"></div>
       <input type="color" id="customColor" title="Custom Color" />
     </div>
+
     <div id="canvasWrapper">
       <canvas id="pixelCanvas" width="1000" height="1000"></canvas>
     </div>
   </div>
 
   <script>
+    // Firebase config and init
     const firebaseConfig = {
       apiKey: "AIzaSyA5FV3rW85Q7e3GaLdTlEXWiiba2VaKIaE",
       authDomain: "pixelgame-932e7.firebaseapp.com",
@@ -100,16 +105,21 @@
     const ctx = canvas.getContext("2d");
     const gridSize = 100;
     const pixelSize = canvas.width / gridSize;
-    const cooldown = 10000;
+
+    const cooldown = 10000; // 10 seconds cooldown between paints
     const localStorageKey = "lastPaintTime";
 
     let currentColor = "#000000";
 
+    // Draw the grid lines
     function drawGrid() {
+      console.log("Drawing grid...");
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+
       ctx.strokeStyle = "#ddd";
       ctx.lineWidth = 0.5;
+
       for (let x = 0; x <= gridSize; x++) {
         ctx.beginPath();
         ctx.moveTo(x * pixelSize, 0);
@@ -122,8 +132,10 @@
         ctx.lineTo(canvas.width, y * pixelSize);
         ctx.stroke();
       }
+      console.log("Grid drawn.");
     }
 
+    // Draw a single pixel square
     function drawPixel(x, y, color) {
       ctx.fillStyle = color;
       ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
@@ -132,7 +144,9 @@
       ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
     }
 
+    // Load saved pixels from Firebase and draw them
     function loadPixels() {
+      console.log("Loading pixels from Firebase...");
       db.ref("pixels").once("value", snapshot => {
         const pixels = snapshot.val();
         if (pixels) {
@@ -140,15 +154,23 @@
             const [x, y] = key.split("_").map(Number);
             drawPixel(x, y, pixels[key]);
           }
+          console.log("Pixels loaded and drawn");
+        } else {
+          console.log("No pixels found in Firebase.");
         }
+      }).catch(err => console.error("Error loading pixels:", err));
+    }
+
+    // Save a pixel color at x,y in Firebase
+    function savePixel(x, y, color) {
+      db.ref(`pixels/${x}_${y}`).set(color).catch(err => {
+        console.error("Error saving pixel:", err);
       });
     }
 
-    function savePixel(x, y, color) {
-      db.ref(`pixels/${x}_${y}`).set(color);
-    }
-
+    // Paint cooldown control & paint handler
     canvas.addEventListener("click", (e) => {
+      console.log("Canvas clicked");
       const now = Date.now();
       const lastPaintTime = parseInt(localStorage.getItem(localStorageKey)) || 0;
       if (now - lastPaintTime < cooldown) {
@@ -160,11 +182,14 @@
       const rect = canvas.getBoundingClientRect();
       const x = Math.floor((e.clientX - rect.left) / pixelSize);
       const y = Math.floor((e.clientY - rect.top) / pixelSize);
+      console.log("Painting pixel at:", x, y, "with color:", currentColor);
+
       drawPixel(x, y, currentColor);
       savePixel(x, y, currentColor);
       localStorage.setItem(localStorageKey, now);
     });
 
+    // Color selector UI logic
     const colorOptions = document.querySelectorAll(".color-option");
     const customColorPicker = document.getElementById("customColor");
 
@@ -189,6 +214,7 @@
       setActiveColor(color, customColorPicker);
     });
 
+    // Initialize app
     setActiveColor("#ff0000", colorOptions[0]);
     drawGrid();
     loadPixels();
