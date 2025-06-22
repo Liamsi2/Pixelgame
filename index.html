@@ -59,13 +59,13 @@
       cursor: crosshair;
       background: white;
       border: 2px solid #333;
-      width: 1000px;
-      height: 1000px;
     }
   </style>
+
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"></script>
+
 </head>
 <body>
   <div id="container">
@@ -78,6 +78,8 @@
       <div class="color-option" style="background:blue;" data-color="#0000ff"></div>
       <div class="color-option" style="background:pink;" data-color="#ffc0cb"></div>
       <div class="color-option" style="background:purple;" data-color="#800080"></div>
+
+      <!-- Custom color picker -->
       <input type="color" id="customColor" title="Custom Color" />
     </div>
 
@@ -87,7 +89,7 @@
   </div>
 
   <script>
-    // Firebase config and init
+    // Your Firebase config (make sure this matches your project)
     const firebaseConfig = {
       apiKey: "AIzaSyA5FV3rW85Q7e3GaLdTlEXWiiba2VaKIaE",
       authDomain: "pixelgame-932e7.firebaseapp.com",
@@ -98,6 +100,7 @@
       appId: "1:988958863299:web:429f085002873124801776"
     };
 
+    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
@@ -106,18 +109,17 @@
     const gridSize = 100;
     const pixelSize = canvas.width / gridSize;
 
-    const cooldown = 10000; // 10 seconds cooldown between paints
+    const cooldown = 10000; // 10 seconds cooldown
     const localStorageKey = "lastPaintTime";
 
-    let currentColor = "#000000";
+    let currentColor = "#000000"; // default black
 
-    // Draw the grid lines
+    // Draw the grid function (same as before)
     function drawGrid() {
-      console.log("Drawing grid...");
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      ctx.strokeStyle = "#ddd";
+      ctx.strokeStyle = "#ddd"; // grid color
       ctx.lineWidth = 0.5;
 
       for (let x = 0; x <= gridSize; x++) {
@@ -126,53 +128,59 @@
         ctx.lineTo(x * pixelSize, canvas.height);
         ctx.stroke();
       }
+
       for (let y = 0; y <= gridSize; y++) {
         ctx.beginPath();
         ctx.moveTo(0, y * pixelSize);
         ctx.lineTo(canvas.width, y * pixelSize);
         ctx.stroke();
       }
-      console.log("Grid drawn.");
     }
 
-    // Draw a single pixel square
+    // Draw a pixel and redraw grid square
     function drawPixel(x, y, color) {
       ctx.fillStyle = color;
       ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+
       ctx.strokeStyle = "#ddd";
       ctx.lineWidth = 0.5;
       ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
     }
 
-    // Load saved pixels from Firebase and draw them
+    // Load all pixels from Firebase once and draw them
     function loadPixels() {
-      console.log("Loading pixels from Firebase...");
-      db.ref("pixels").once("value", snapshot => {
-        const pixels = snapshot.val();
-        if (pixels) {
-          for (const key in pixels) {
-            const [x, y] = key.split("_").map(Number);
-            drawPixel(x, y, pixels[key]);
+      db.ref("pixels").once("value")
+        .then(snapshot => {
+          const pixels = snapshot.val();
+          if (pixels) {
+            for (const key in pixels) {
+              const [x, y] = key.split("_").map(Number);
+              drawPixel(x, y, pixels[key]);
+            }
           }
-          console.log("Pixels loaded and drawn");
-        } else {
-          console.log("No pixels found in Firebase.");
-        }
-      }).catch(err => console.error("Error loading pixels:", err));
+        })
+        .catch(err => {
+          console.error("Failed to load pixels:", err);
+        });
     }
 
-    // Save a pixel color at x,y in Firebase
+    // Save pixel color to Firebase
     function savePixel(x, y, color) {
-      db.ref(`pixels/${x}_${y}`).set(color).catch(err => {
-        console.error("Error saving pixel:", err);
-      });
+      db.ref(`pixels/${x}_${y}`).set(color)
+        .catch(err => {
+          console.error("Failed to save pixel:", err);
+        });
     }
 
-    // Paint cooldown control & paint handler
+    // Initial grid draw + load pixels
+    drawGrid();
+    loadPixels();
+
+    // Canvas click event handler with cooldown and saving
     canvas.addEventListener("click", (e) => {
-      console.log("Canvas clicked");
       const now = Date.now();
       const lastPaintTime = parseInt(localStorage.getItem(localStorageKey)) || 0;
+
       if (now - lastPaintTime < cooldown) {
         const waitTime = Math.ceil((cooldown - (now - lastPaintTime)) / 1000);
         alert(`Wait ${waitTime} more seconds before painting again.`);
@@ -182,14 +190,14 @@
       const rect = canvas.getBoundingClientRect();
       const x = Math.floor((e.clientX - rect.left) / pixelSize);
       const y = Math.floor((e.clientY - rect.top) / pixelSize);
-      console.log("Painting pixel at:", x, y, "with color:", currentColor);
 
       drawPixel(x, y, currentColor);
       savePixel(x, y, currentColor);
+
       localStorage.setItem(localStorageKey, now);
     });
 
-    // Color selector UI logic
+    // Color palette UI logic (same as yours)
     const colorOptions = document.querySelectorAll(".color-option");
     const customColorPicker = document.getElementById("customColor");
 
@@ -210,14 +218,11 @@
     });
 
     customColorPicker.addEventListener("input", () => {
-      const color = customColorPicker.value;
-      setActiveColor(color, customColorPicker);
+      setActiveColor(customColorPicker.value, customColorPicker);
     });
 
-    // Initialize app
+    // Default selected color
     setActiveColor("#ff0000", colorOptions[0]);
-    drawGrid();
-    loadPixels();
   </script>
 </body>
 </html>
