@@ -87,18 +87,24 @@
     const ctx = canvas.getContext("2d");
     const gridSize = 100;
     const pixelSize = canvas.width / gridSize;
-    const cooldown = 10000; // 10 seconds
+    const cooldown = 10000;
     const localStorageKey = "lastPaintTime";
 
-    let currentColor = "#000000"; // default black
+    let currentColor = "#000000";
 
     const supabaseUrl = "https://epucyhgtvvksxsjdqopz.supabase.co";
     const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwdWN5aGd0dnZrc3hzamRxb3B6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA2MTcwNTQsImV4cCI6MjA2NjE5MzA1NH0.uKK7iIggeCVgRNHFEZV7_wIVMmZKbyGvZsgWqHzPoL8";
     const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-    async function drawGrid() {
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    function drawPixel(x, y, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+      ctx.strokeStyle = "#ddd";
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+    }
+
+    function drawGrid() {
       ctx.strokeStyle = "#ddd";
       ctx.lineWidth = 0.5;
       for (let x = 0; x <= gridSize; x++) {
@@ -113,23 +119,28 @@
         ctx.lineTo(canvas.width, y * pixelSize);
         ctx.stroke();
       }
+    }
 
-      const { data } = await supabase.from("pixels").select("x, y, color");
+    async function loadPixelsAndDraw() {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const { data, error } = await supabase.from("pixels").select("x, y, color");
+      if (error) {
+        console.error("Supabase error:", error.message);
+        return;
+      }
+
       if (data) {
         data.forEach(({ x, y, color }) => drawPixel(x, y, color));
       }
+
+      drawGrid();
     }
 
     async function savePixel(x, y, color) {
-      await supabase.from("pixels").upsert({ x, y, color });
-    }
-
-    function drawPixel(x, y, color) {
-      ctx.fillStyle = color;
-      ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
-      ctx.strokeStyle = "#ddd";
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+      const { error } = await supabase.from("pixels").upsert({ x, y, color });
+      if (error) console.error("Save error:", error.message);
     }
 
     canvas.addEventListener("click", async (e) => {
@@ -140,9 +151,11 @@
         alert(`Wait ${waitTime} more seconds before painting again.`);
         return;
       }
+
       const rect = canvas.getBoundingClientRect();
       const x = Math.floor((e.clientX - rect.left) / pixelSize);
       const y = Math.floor((e.clientY - rect.top) / pixelSize);
+
       drawPixel(x, y, currentColor);
       await savePixel(x, y, currentColor);
       localStorage.setItem(localStorageKey, now);
@@ -173,7 +186,7 @@
     });
 
     setActiveColor("#ff0000", colorOptions[0]);
-    drawGrid();
+    loadPixelsAndDraw();
   </script>
 </body>
 </html>
