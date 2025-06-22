@@ -61,6 +61,7 @@
       border: 2px solid #333;
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div id="container">
@@ -73,8 +74,6 @@
       <div class="color-option" style="background:blue;" data-color="#0000ff"></div>
       <div class="color-option" style="background:pink;" data-color="#ffc0cb"></div>
       <div class="color-option" style="background:purple;" data-color="#800080"></div>
-
-      <!-- Custom color picker -->
       <input type="color" id="customColor" title="Custom Color" />
     </div>
 
@@ -88,62 +87,67 @@
     const ctx = canvas.getContext("2d");
     const gridSize = 100;
     const pixelSize = canvas.width / gridSize;
-
     const cooldown = 10000; // 10 seconds
     const localStorageKey = "lastPaintTime";
 
     let currentColor = "#000000"; // default black
 
-    function drawGrid() {
+    const supabaseUrl = "https://epucyhgtvvksxsjdqopz.supabase.co";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwdWN5aGd0dnZrc3hzamRxb3B6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA2MTcwNTQsImV4cCI6MjA2NjE5MzA1NH0.uKK7iIggeCVgRNHFEZV7_wIVMmZKbyGvZsgWqHzPoL8";
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+    async function drawGrid() {
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      ctx.strokeStyle = "#ddd"; // grid color
+      ctx.strokeStyle = "#ddd";
       ctx.lineWidth = 0.5;
-
       for (let x = 0; x <= gridSize; x++) {
         ctx.beginPath();
         ctx.moveTo(x * pixelSize, 0);
         ctx.lineTo(x * pixelSize, canvas.height);
         ctx.stroke();
       }
-
       for (let y = 0; y <= gridSize; y++) {
         ctx.beginPath();
         ctx.moveTo(0, y * pixelSize);
         ctx.lineTo(canvas.width, y * pixelSize);
         ctx.stroke();
       }
+
+      const { data } = await supabase.from("pixels").select("x, y, color");
+      if (data) {
+        data.forEach(({ x, y, color }) => drawPixel(x, y, color));
+      }
     }
 
-    drawGrid();
+    async function savePixel(x, y, color) {
+      await supabase.from("pixels").upsert({ x, y, color });
+    }
 
-    canvas.addEventListener("click", (e) => {
+    function drawPixel(x, y, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+      ctx.strokeStyle = "#ddd";
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+    }
+
+    canvas.addEventListener("click", async (e) => {
       const now = Date.now();
       const lastPaintTime = parseInt(localStorage.getItem(localStorageKey)) || 0;
-
       if (now - lastPaintTime < cooldown) {
         const waitTime = Math.ceil((cooldown - (now - lastPaintTime)) / 1000);
         alert(`Wait ${waitTime} more seconds before painting again.`);
         return;
       }
-
       const rect = canvas.getBoundingClientRect();
       const x = Math.floor((e.clientX - rect.left) / pixelSize);
       const y = Math.floor((e.clientY - rect.top) / pixelSize);
-
-      ctx.fillStyle = currentColor;
-      ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
-
-      // Redraw grid over the painted pixel
-      ctx.strokeStyle = "#ddd";
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
-
+      drawPixel(x, y, currentColor);
+      await savePixel(x, y, currentColor);
       localStorage.setItem(localStorageKey, now);
     });
 
-    // Handle preset color clicks
     const colorOptions = document.querySelectorAll(".color-option");
     const customColorPicker = document.getElementById("customColor");
 
@@ -163,14 +167,14 @@
       });
     });
 
-    // Handle custom color
     customColorPicker.addEventListener("input", () => {
       const color = customColorPicker.value;
       setActiveColor(color, customColorPicker);
     });
 
-    // Default selected color
     setActiveColor("#ff0000", colorOptions[0]);
+    drawGrid();
   </script>
 </body>
 </html>
+# sdksdsd
