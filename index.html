@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pixel Paint</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+
+    #container {
+      display: flex;
+      height: 100%;
+      width: 100%;
+    }
+
+    #sidebar {
+      width: 80px;
+      background: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 5px;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+      gap: 8px;
+    }
+
+    .color-option {
+      width: 30px;
+      height: 30px;
+      border-radius: 4px;
+      border: 2px solid #aaa;
+      cursor: pointer;
+    }
+
+    #customColor {
+      margin-top: 10px;
+      width: 40px;
+      height: 40px;
+      border: 2px solid #aaa;
+      padding: 0;
+      background: none;
+      cursor: pointer;
+    }
+
+    #canvasWrapper {
+      flex: 1;
+      background: #ccc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    canvas {
+      image-rendering: pixelated;
+      cursor: crosshair;
+      background: white;
+      border: 2px solid #333;
+    }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"></script>
+</head>
+<body>
+  <div id="container">
+    <div id="sidebar">
+      <div class="color-option" style="background:red;" data-color="#ff0000"></div>
+      <div class="color-option" style="background:green;" data-color="#00ff00"></div>
+      <div class="color-option" style="background:yellow;" data-color="#ffff00"></div>
+      <div class="color-option" style="background:orange;" data-color="#ffa500"></div>
+      <div class="color-option" style="background:black;" data-color="#000000"></div>
+      <div class="color-option" style="background:blue;" data-color="#0000ff"></div>
+      <div class="color-option" style="background:pink;" data-color="#ffc0cb"></div>
+      <div class="color-option" style="background:purple;" data-color="#800080"></div>
+      <input type="color" id="customColor" title="Custom Color" />
+    </div>
+    <div id="canvasWrapper">
+      <canvas id="pixelCanvas" width="1000" height="1000"></canvas>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyA5FV3rW85Q7e3GaLdTlEXWiiba2VaKIaE",
+      authDomain: "pixelgame-932e7.firebaseapp.com",
+      databaseURL: "https://pixelgame-932e7-default-rtdb.firebaseio.com",
+      projectId: "pixelgame-932e7",
+      storageBucket: "pixelgame-932e7.appspot.com",
+      messagingSenderId: "988958863299",
+      appId: "1:988958863299:web:429f085002873124801776"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const canvas = document.getElementById("pixelCanvas");
+    const ctx = canvas.getContext("2d");
+    const gridSize = 100;
+    const pixelSize = canvas.width / gridSize;
+    const cooldown = 10000;
+    const localStorageKey = "lastPaintTime";
+
+    let currentColor = "#000000";
+
+    function drawGrid() {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#ddd";
+      ctx.lineWidth = 0.5;
+      for (let x = 0; x <= gridSize; x++) {
+        ctx.beginPath();
+        ctx.moveTo(x * pixelSize, 0);
+        ctx.lineTo(x * pixelSize, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= gridSize; y++) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * pixelSize);
+        ctx.lineTo(canvas.width, y * pixelSize);
+        ctx.stroke();
+      }
+    }
+
+    function drawPixel(x, y, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+      ctx.strokeStyle = "#ddd";
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+    }
+
+    function loadPixels() {
+      db.ref("pixels").once("value", snapshot => {
+        const pixels = snapshot.val();
+        if (pixels) {
+          for (const key in pixels) {
+            const [x, y] = key.split("_").map(Number);
+            drawPixel(x, y, pixels[key]);
+          }
+        }
+      });
+    }
+
+    function savePixel(x, y, color) {
+      db.ref(`pixels/${x}_${y}`).set(color);
+    }
+
+    canvas.addEventListener("click", (e) => {
+      const now = Date.now();
+      const lastPaintTime = parseInt(localStorage.getItem(localStorageKey)) || 0;
+      if (now - lastPaintTime < cooldown) {
+        const waitTime = Math.ceil((cooldown - (now - lastPaintTime)) / 1000);
+        alert(`Wait ${waitTime} more seconds before painting again.`);
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) / pixelSize);
+      const y = Math.floor((e.clientY - rect.top) / pixelSize);
+      drawPixel(x, y, currentColor);
+      savePixel(x, y, currentColor);
+      localStorage.setItem(localStorageKey, now);
+    });
+
+    const colorOptions = document.querySelectorAll(".color-option");
+    const customColorPicker = document.getElementById("customColor");
+
+    function setActiveColor(color, sourceElement = null) {
+      currentColor = color;
+      colorOptions.forEach(o => o.style.border = "2px solid #aaa");
+      customColorPicker.style.border = "2px solid #aaa";
+      if (sourceElement) {
+        sourceElement.style.border = "2px solid #000";
+      }
+    }
+
+    colorOptions.forEach(option => {
+      option.addEventListener("click", () => {
+        const color = option.getAttribute("data-color");
+        setActiveColor(color, option);
+      });
+    });
+
+    customColorPicker.addEventListener("input", () => {
+      const color = customColorPicker.value;
+      setActiveColor(color, customColorPicker);
+    });
+
+    setActiveColor("#ff0000", colorOptions[0]);
+    drawGrid();
+    loadPixels();
+  </script>
+</body>
+</html>
